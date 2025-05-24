@@ -1,5 +1,12 @@
 {
-  "Clarity": "Evaluate how clearly ideas are expressed. Look for ambiguous language or overly complex sentences.",
-  "Voice Consistency": "Assess how consistently the writer’s voice is maintained throughout."
-
+  "Clarity": "How clearly are the ideas expressed? Is the writing concise and unambiguous?",
+  "Structure": "Does the text follow a logical organization and flow? Are transitions smooth?",
+  "Evidence": "Is the argument supported with relevant data, examples, or references?",
+  "Engagement": "Is the writing compelling or thought-provoking for the intended audience?",
+  "Purpose": "Does the piece align with its intended purpose and objectives?",
+  "Tone": "Is the tone appropriate for the topic and audience (e.g., formal, persuasive, analytical)?",
+  "Credibility": "Is the voice authoritative? Are claims trustworthy and grounded?",
+  "Originality": "Does the writing show unique insight or a fresh perspective?",
+  "Technical Accuracy": "Are there grammar, spelling, or punctuation errors?",
+  "Readability": "Is the writing accessible, fluent, and easy to follow for the target audience?"
 }
