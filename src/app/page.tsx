@@ -1,101 +1,228 @@
-import Image from "next/image";
+"use client"
+
+import { useState } from "react"
+import axios from "axios"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { FileText, Download, Loader2, BarChart3, FileDown } from "lucide-react"
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [text, setText] = useState("")
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  async function handleScore() {
+    if (!text.trim()) return alert("Please enter some text.")
+    setLoading(true)
+    try {
+      const res = await axios.post("/api/score", { text })
+      setResult(res.data)
+    } catch (err) {
+      alert("Scoring failed.")
+    }
+    setLoading(false)
+  }
+
+  async function handleExport(type: "pdf" | "docx") {
+    if (!result) return
+    setExporting(true)
+
+    const res = await fetch(`/api/export/${type}`, {
+      method: "POST",
+      body: JSON.stringify({
+        scores: result.scores,
+        average: result.average,
+        rewritePrompt: result.rewritePrompt || "N/A",
+        metadata: {
+          sectionId: "Draft-001",
+          version: "v1.0",
+        },
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+
+    setExporting(false)
+
+    if (!res.ok) {
+      alert(`Failed to generate ${type.toUpperCase()}.`)
+      return
+    }
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `scoring-report.${type}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 8) return "bg-green-100 text-green-800 border-green-200"
+    if (score >= 6) return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    return "bg-red-100 text-red-800 border-red-200"
+  }
+
+  const getAverageColor = (average: number) => {
+    if (average >= 8) return "text-green-600"
+    if (average >= 6) return "text-yellow-600"
+    return "text-red-600"
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-6xl mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4 pt-8">
+          <div className="flex items-center justify-center gap-3">
+            <div className="p-3 bg-emerald-100 rounded-full">
+              <BarChart3 className="h-8 w-8 text-emerald-600" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+              AI Writing Scorer
+            </h1>
+          </div>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            Get detailed feedback on your writing with AI-powered analysis across multiple dimensions
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Input Section */}
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-emerald-600" />
+              Submit Your Text
+            </CardTitle>
+            <CardDescription>Paste your writing below to receive comprehensive scoring and feedback</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Textarea
+              className="min-h-[200px] resize-none border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+              placeholder="Paste your text here for analysis..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                {text.length} characters • {text.split(/\s+/).filter((word) => word.length > 0).length} words
+              </p>
+              <Button
+                onClick={handleScore}
+                disabled={loading || !text.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Analyze Writing
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Results Section */}
+        {result && (
+          <div className="space-y-6">
+            {/* Average Score Card */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-medium text-slate-700">Overall Score</h3>
+                  <div className={`text-6xl font-bold ${getAverageColor(result.average)}`}>{result.average}</div>
+                  <p className="text-slate-500">out of 10</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Detailed Scores */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+              <CardHeader>
+                <CardTitle>Detailed Analysis</CardTitle>
+                <CardDescription>Breakdown of scores across different writing dimensions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {Object.entries(result.scores).map(([category, data]: any, index) => (
+                    <div key={category}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-3">
+                            <h4 className="font-semibold text-slate-900 capitalize">
+                              {category.replace(/([A-Z])/g, " $1").trim()}
+                            </h4>
+                            <Badge variant="outline" className={`${getScoreColor(data.score)} font-semibold`}>
+                              {data.score}/10
+                            </Badge>
+                          </div>
+                          <p className="text-slate-600 leading-relaxed">{data.explanation}</p>
+                        </div>
+                      </div>
+                      {index < Object.entries(result.scores).length - 1 && <Separator className="mt-6" />}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Export Section */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5 text-emerald-600" />
+                  Export Report
+                </CardTitle>
+                <CardDescription>Download your analysis report in your preferred format</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button
+                    onClick={() => handleExport("pdf")}
+                    disabled={exporting}
+                    variant="outline"
+                    className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+                  >
+                    {exporting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileDown className="mr-2 h-4 w-4" />
+                    )}
+                    Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => handleExport("docx")}
+                    disabled={exporting}
+                    variant="outline"
+                    className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50"
+                  >
+                    {exporting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileDown className="mr-2 h-4 w-4" />
+                    )}
+                    Download DOCX
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
