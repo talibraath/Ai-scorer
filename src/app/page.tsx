@@ -22,7 +22,8 @@ export default function Home() {
       const res = await axios.post("/api/score", { text })
       setResult(res.data)
     } catch (err) {
-      alert("Scoring failed.")
+        console.error(err);
+
     }
     setLoading(false)
   }

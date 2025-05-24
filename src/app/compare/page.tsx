@@ -36,6 +36,7 @@ export default function ComparePage() {
       const res = await axios.post("/api/compare", { textA, textB })
       setResult(res.data)
     } catch (err) {
+        console.error(err);
       alert("Comparison failed.")
     }
     setLoading(false)
