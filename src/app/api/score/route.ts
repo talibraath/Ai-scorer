@@ -1,33 +1,34 @@
-// ✅ Correct way for App Router (Next.js 13+)
 import { NextRequest, NextResponse } from "next/server";
 import { scoreWithGPT, generateRewritePrompt } from "@/../lib/gpt";
 import rubric from "@/../public/rubric.json";
 
 export async function POST(req: NextRequest) {
-  const { text } = await req.json();
+  const { textA, textB } = await req.json();
 
-  if (!text) {
-    return NextResponse.json({ error: "No text provided" }, { status: 400 });
+  if (!textA || !textB) {
+    return NextResponse.json({ error: "Both textA and textB are required." }, { status: 400 });
   }
 
-  const results: Record<string, any> = {};
-  const scores: number[] = [];
+  const versionA: Record<string, any> = {};
+  const versionB: Record<string, any> = {};
+  const deltas: Record<string, number> = {};
 
-  for (const [category, description] of Object.entries(rubric)) {
-    const result = await scoreWithGPT(category, description, text);
-    results[category] = result;
-    scores.push(result.score);
+  for (const [category, definition] of Object.entries(rubric)) {
+    const prompt = `${definition.Definition} Measures: ${definition.Measures.join(", ")}`;
+    
+    const [scoreA, scoreB] = await Promise.all([
+      scoreWithGPT(category, prompt, textA),
+      scoreWithGPT(category, prompt, textB),
+    ]);
+
+    versionA[category] = scoreA;
+    versionB[category] = scoreB;
+    deltas[category] = scoreB.score - scoreA.score;
   }
-
-  const average = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
-
-  const sorted = Object.entries(results).sort((a, b) => a[1].score - b[1].score);
-  const lowestCategories = sorted.slice(0, 2).map(([cat]) => cat);
-  const rewritePrompt = await generateRewritePrompt(lowestCategories, rubric, text);
 
   return NextResponse.json({
-    scores: results,
-    average,
-    rewritePrompt
+    versionA,
+    versionB,
+    deltas
   });
 }
