@@ -17,9 +17,10 @@ export async function POST(req: NextRequest) {
   };
 
   for (const [category, definition] of Object.entries(rubric)) {
+    const rubricString = JSON.stringify(definition);
     const [scoreA, scoreB] = await Promise.all([
-      scoreWithGPT(category, definition, textA),
-      scoreWithGPT(category, definition, textB),
+      scoreWithGPT(category, rubricString, textA),
+      scoreWithGPT(category, rubricString, textB),
     ]);
 
     results.versionA[category] = scoreA;
