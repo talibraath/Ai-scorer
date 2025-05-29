@@ -14,10 +14,8 @@ export async function POST(req: NextRequest) {
   const scores: number[] = [];
 
   for (const [category, description] of Object.entries(rubric)) {
-    const rubricString = typeof description === "string"
-      ? description
-      : JSON.stringify(description);
-    const result = await scoreWithGPT(category, rubricString, text);
+    const definition = typeof description === "string" ? description : description.Definition;
+    const result = await scoreWithGPT(category, definition, text);
     results[category] = result;
     scores.push(result.score);
   }
