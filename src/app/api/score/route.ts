@@ -1,34 +1,36 @@
+// ✅ Correct way for App Router (Next.js 13+)
 import { NextRequest, NextResponse } from "next/server";
 import { scoreWithGPT, generateRewritePrompt } from "@/../lib/gpt";
 import rubric from "@/../public/rubric.json";
 
 export async function POST(req: NextRequest) {
-  const { textA, textB } = await req.json();
+  const { text } = await req.json();
 
-  if (!textA || !textB) {
-    return NextResponse.json({ error: "Both textA and textB are required." }, { status: 400 });
+  if (!text) {
+    return NextResponse.json({ error: "No text provided" }, { status: 400 });
   }
 
-  const versionA: Record<string, any> = {};
-  const versionB: Record<string, any> = {};
-  const deltas: Record<string, number> = {};
+  const results: Record<string, any> = {};
+  const scores: number[] = [];
 
-  for (const [category, definition] of Object.entries(rubric)) {
-    const prompt = `${definition.Definition} Measures: ${definition.Measures.join(", ")}`;
-    
-    const [scoreA, scoreB] = await Promise.all([
-      scoreWithGPT(category, prompt, textA),
-      scoreWithGPT(category, prompt, textB),
-    ]);
-
-    versionA[category] = scoreA;
-    versionB[category] = scoreB;
-    deltas[category] = scoreB.score - scoreA.score;
+  for (const [category, description] of Object.entries(rubric)) {
+    const rubricString = typeof description === "string"
+      ? description
+      : JSON.stringify(description);
+    const result = await scoreWithGPT(category, rubricString, text);
+    results[category] = result;
+    scores.push(result.score);
   }
+
+  const average = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2);
+
+  const sorted = Object.entries(results).sort((a, b) => a[1].score - b[1].score);
+  const lowestCategories = sorted.slice(0, 2).map(([cat]) => cat);
+  const rewritePrompt = await generateRewritePrompt(lowestCategories, rubric, text);
 
   return NextResponse.json({
-    versionA,
-    versionB,
-    deltas
+    scores: results,
+    average,
+    rewritePrompt
   });
 }
