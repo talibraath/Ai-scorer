@@ -24,7 +24,17 @@ export async function POST(req: NextRequest) {
 
   const sorted = Object.entries(results).sort((a, b) => a[1].score - b[1].score);
   const lowestCategories = sorted.slice(0, 2).map(([cat]) => cat);
-  const rewritePrompt = await generateRewritePrompt(lowestCategories, rubric, text);
+//  const rewritePrompt = await generateRewritePrompt(lowestCategories, rubric, text);
+
+
+
+const definitionsOnly: Record<string, string> = Object.fromEntries(
+  Object.entries(rubric).map(([key, value]) => [key, value.Definition])
+);
+
+const rewritePrompt = await generateRewritePrompt(lowestCategories, definitionsOnly, text);
+
+
 
   return NextResponse.json({
     scores: results,
