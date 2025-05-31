@@ -5,7 +5,13 @@ import type React from "react"
 import { useState, useRef } from "react"
 import axios from "axios"
 import * as mammoth from "mammoth"
-import { getDocument } from "pdfjs-dist"
+
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist"
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url"
+
+GlobalWorkerOptions.workerSrc = workerSrc
+
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -70,6 +76,9 @@ export default function Home() {
         const arrayBuffer = await file.arrayBuffer()
         setUploadProgress(50)
         const pdf = await getDocument({ data: arrayBuffer }).promise
+
+         // const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
         setUploadProgress(70)
         let text = ""
         for (let i = 1; i <= pdf.numPages; i++) {
