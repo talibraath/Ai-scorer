@@ -1,7 +1,7 @@
 // ✅ Correct way for App Router (Next.js 13+)
 import { NextRequest, NextResponse } from "next/server";
 import { scoreWithGPT, generateRewritePrompt } from "@/../lib/gpt";
-import rubric from "@/../public/rubric.json";
+import rubric from "@/../lib/rubric";
 
 export async function POST(req: NextRequest) {
   const { text } = await req.json();

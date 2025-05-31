@@ -1,8 +1,10 @@
 // /src/app/api/compare/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { scoreWithGPT } from "@/../lib/gpt";
-import rubric from "@/../public/rubric.json";
+//import rubric from "@/../lib/rubric";
 
+
+import rubric from "@/../lib/rubric";
 export async function POST(req: NextRequest) {
   const { textA, textB } = await req.json();
 
