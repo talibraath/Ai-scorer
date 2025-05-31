@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import axios from "axios"
+import * as mammoth from "mammoth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,6 +18,7 @@ import {
   TrendingDown,
   Minus,
   ArrowRight,
+  Upload,
 } from "lucide-react"
 
 export default function ComparePage() {
@@ -25,6 +27,40 @@ export default function ComparePage() {
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+
+  const fileInputARef = useRef<HTMLInputElement>(null)
+  const fileInputBRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    version: "A" | "B"
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const ext = file.name.split(".").pop()?.toLowerCase()
+    const arrayBuffer = await file.arrayBuffer()
+
+    try {
+      if (ext === "txt") {
+        const content = new TextDecoder("utf-8").decode(arrayBuffer)
+        version === "A" ? setTextA(content) : setTextB(content)
+      } else if (ext === "docx") {
+        const result = await mammoth.extractRawText({ arrayBuffer })
+        version === "A" ? setTextA(result.value) : setTextB(result.value)
+      } else if (ext === "pdf") {
+        const { extractTextFromPDF } = await import("@/app/utils/pdfProcessor")
+        const text = await extractTextFromPDF(arrayBuffer)
+        version === "A" ? setTextA(text) : setTextB(text)
+      } else {
+        alert("Unsupported file type. Please upload a .txt, .pdf, or .docx file.")
+        return
+      }
+    } catch (err) {
+      console.error("File processing error:", err)
+      alert("Error processing the uploaded file. Please try again.")
+    }
+  }
 
   async function handleCompare() {
     if (!textA.trim() || !textB.trim()) {
@@ -41,11 +77,10 @@ export default function ComparePage() {
     setLoading(false)
   }
 
-  async function handleExportPdf() {
+  async function handleExport(type: "pdf" | "docx") {
     if (!result) return
     setExporting(true)
-
-    const res = await fetch("/api/export/pdf", {
+    const res = await fetch(`/api/export/${type}`, {
       method: "POST",
       body: JSON.stringify({
         scores: result.versionB,
@@ -67,7 +102,7 @@ export default function ComparePage() {
     setExporting(false)
 
     if (!res.ok) {
-      alert("Failed to generate PDF.")
+      alert(`Failed to generate ${type.toUpperCase()}.`)
       return
     }
 
@@ -75,53 +110,16 @@ export default function ComparePage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = "comparison-report.pdf"
+    link.download = `comparison-report.${type}`
     document.body.appendChild(link)
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
   }
 
-  async function handleExportDocx() {
-    if (!result) return
-    setExporting(true)
 
-    const res = await fetch("/api/export/docx", {
-      method: "POST",
-      body: JSON.stringify({
-        scores: result.versionB,
-        average:
-          Object.values(result.versionB)
-            .map((v: any) => v.score)
-            .reduce((a: number, b: number) => a + b, 0) / Object.keys(result.versionB).length,
-        rewritePrompt: "See deltas and low scores for improvement.",
-        metadata: {
-          sectionId: "Comparison",
-          version: "vB",
-        },
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-
-    setExporting(false)
-
-    if (!res.ok) {
-      alert("Failed to generate DOCX.")
-      return
-    }
-
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = "comparison-report.docx"
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  }
+  const handleExportPdf = () => handleExport("pdf")
+const handleExportDocx = () => handleExport("docx")
 
   const getScoreColor = (score: number) => {
     if (score >= 8) return "bg-green-100 text-green-800 border-green-200"
@@ -160,7 +158,6 @@ export default function ComparePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Header */}
         <div className="text-center space-y-4 pt-8">
           <div className="flex items-center justify-center gap-3">
             <div className="p-3 bg-emerald-100 rounded-full">
@@ -175,18 +172,16 @@ export default function ComparePage() {
           </p>
         </div>
 
-        {/* Input Section */}
         <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-emerald-600" />
               Text Comparison
             </CardTitle>
-            <CardDescription>Enter your original text and revised version to see detailed comparison</CardDescription>
+            <CardDescription>Upload or paste your original and revised version to see detailed comparison</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Version A */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-slate-50 text-slate-700">
@@ -194,26 +189,24 @@ export default function ComparePage() {
                   </Badge>
                   <span className="text-sm text-slate-500">Original</span>
                 </div>
+                <Button onClick={() => fileInputARef.current?.click()} variant="outline" className="w-full">
+                  <Upload className="mr-2 h-4 w-4" /> Upload File
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputARef}
+                  className="hidden"
+                  accept=".txt,.docx,.pdf"
+                  onChange={(e) => handleFileUpload(e, "A")}
+                />
                 <Textarea
                   className="min-h-[200px] resize-none border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                   placeholder="Paste your original text here..."
                   value={textA}
                   onChange={(e) => setTextA(e.target.value)}
                 />
-                <p className="text-xs text-slate-500">
-                  {textA.length} characters • {textA.split(/\s+/).filter((word) => word.length > 0).length} words
-                </p>
               </div>
 
-              {/* Arrow indicator */}
-              <div className="hidden lg:flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2">
-                  <ArrowRight className="h-6 w-6 text-slate-400" />
-                  <span className="text-xs text-slate-500">Compare</span>
-                </div>
-              </div>
-
-              {/* Version B */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
@@ -221,15 +214,22 @@ export default function ComparePage() {
                   </Badge>
                   <span className="text-sm text-slate-500">Revised</span>
                 </div>
+                <Button onClick={() => fileInputBRef.current?.click()} variant="outline" className="w-full">
+                  <Upload className="mr-2 h-4 w-4" /> Upload File
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputBRef}
+                  className="hidden"
+                  accept=".txt,.docx,.pdf"
+                  onChange={(e) => handleFileUpload(e, "B")}
+                />
                 <Textarea
                   className="min-h-[200px] resize-none border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                   placeholder="Paste your revised text here..."
                   value={textB}
                   onChange={(e) => setTextB(e.target.value)}
                 />
-                <p className="text-xs text-slate-500">
-                  {textB.length} characters • {textB.split(/\s+/).filter((word) => word.length > 0).length} words
-                </p>
               </div>
             </div>
 
@@ -242,163 +242,164 @@ export default function ComparePage() {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Comparing...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Comparing...
                   </>
                 ) : (
                   <>
-                    <GitCompare className="mr-2 h-4 w-4" />
-                    Compare Versions
+                    <GitCompare className="mr-2 h-4 w-4" /> Compare Versions
                   </>
                 )}
               </Button>
             </div>
           </CardContent>
         </Card>
-
-        {/* Results Section */}
-        {result && (
-          <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
-                <CardContent className="pt-6 text-center">
-                  <div className="text-2xl font-bold text-slate-700">
-                    {Object.values(result.versionA).reduce((sum: number, item: any) => sum + item.score, 0) /
-                      Object.keys(result.versionA).length}
-                  </div>
-                  <p className="text-sm text-slate-500">Version A Average</p>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
-                <CardContent className="pt-6 text-center">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {Object.values(result.versionB).reduce((sum: number, item: any) => sum + item.score, 0) /
-                      Object.keys(result.versionB).length}
-                  </div>
-                  <p className="text-sm text-slate-500">Version B Average</p>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
-                <CardContent className="pt-6 text-center">
-                  <div
-                    className={`text-2xl font-bold ${
-                      Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) > 0
-                        ? "text-green-600"
-                        : Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) < 0
-                          ? "text-red-600"
-                          : "text-slate-500"
-                    }`}
-                  >
-                    {Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) > 0 ? "+" : ""}
-                    {(
-                      Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) /
-                      Object.keys(result.deltas).length
-                    ).toFixed(1)}
-                  </div>
-                  <p className="text-sm text-slate-500">Average Change</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Detailed Comparison */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
-              <CardHeader>
-                <CardTitle>Detailed Comparison</CardTitle>
-                <CardDescription>Score breakdown and changes across all writing dimensions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.keys(result.deltas).map((category, index) => {
-                    const deltaInfo = getDeltaDisplay(result.deltas[category])
-                    return (
-                      <div key={category}>
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                          <div className="md:col-span-1">
-                            <h4 className="font-semibold text-slate-900 capitalize">
-                              {category.replace(/([A-Z])/g, " $1").trim()}
-                            </h4>
-                          </div>
-
-                          <div className="text-center">
-                            <Badge variant="outline" className={getScoreColor(result.versionA[category].score)}>
-                              {result.versionA[category].score}
-                            </Badge>
-                            <p className="text-xs text-slate-500 mt-1">Version A</p>
-                          </div>
-
-                          <div className="flex justify-center">
-                            <ArrowRight className="h-4 w-4 text-slate-400" />
-                          </div>
-
-                          <div className="text-center">
-                            <Badge variant="outline" className={getScoreColor(result.versionB[category].score)}>
-                              {result.versionB[category].score}
-                            </Badge>
-                            <p className="text-xs text-slate-500 mt-1">Version B</p>
-                          </div>
-
-                          <div className="text-center">
-                            <div
-                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium ${deltaInfo.bg} ${deltaInfo.color} ${deltaInfo.border} border`}
-                            >
-                              {deltaInfo.icon}
-                              {deltaInfo.text}
-                            </div>
-                          </div>
-                        </div>
-                        {index < Object.keys(result.deltas).length - 1 && <Separator className="mt-4" />}
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Export Section */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Download className="h-5 w-5 text-emerald-600" />
-                  Export Comparison Report
-                </CardTitle>
-                <CardDescription>Download your comparison analysis in your preferred format</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    onClick={handleExportPdf}
-                    disabled={exporting}
-                    variant="outline"
-                    className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
-                  >
-                    {exporting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileDown className="mr-2 h-4 w-4" />
-                    )}
-                    Download PDF
-                  </Button>
-                  <Button
-                    onClick={handleExportDocx}
-                    disabled={exporting}
-                    variant="outline"
-                    className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50"
-                  >
-                    {exporting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileDown className="mr-2 h-4 w-4" />
-                    )}
-                    Download DOCX
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+{/* Results Section */}
+{result && (
+  <div className="space-y-6">
+    {/* Summary Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+        <CardContent className="pt-6 text-center">
+          <div className="text-2xl font-bold text-slate-700">
+            {(
+              Object.values(result.versionA).reduce((sum: number, item: any) => sum + item.score, 0) /
+              Object.keys(result.versionA).length
+            ).toFixed(1)}
           </div>
-        )}
+          <p className="text-sm text-slate-500">Version A Average</p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+        <CardContent className="pt-6 text-center">
+          <div className="text-2xl font-bold text-emerald-600">
+            {(
+              Object.values(result.versionB).reduce((sum: number, item: any) => sum + item.score, 0) /
+              Object.keys(result.versionB).length
+            ).toFixed(1)}
+          </div>
+          <p className="text-sm text-slate-500">Version B Average</p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+        <CardContent className="pt-6 text-center">
+          <div
+            className={`text-2xl font-bold ${
+              Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) > 0
+                ? "text-green-600"
+                : Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) < 0
+                ? "text-red-600"
+                : "text-slate-500"
+            }`}
+          >
+            {Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) > 0 ? "+" : ""}
+            {(
+              Object.values(result.deltas).reduce((sum: number, delta: any) => sum + delta, 0) /
+              Object.keys(result.deltas).length
+            ).toFixed(1)}
+          </div>
+          <p className="text-sm text-slate-500">Average Change</p>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Detailed Comparison */}
+    <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+      <CardHeader>
+        <CardTitle>Detailed Comparison</CardTitle>
+        <CardDescription>Score breakdown and changes across all writing dimensions</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {Object.keys(result.deltas).map((category, index) => {
+            const deltaInfo = getDeltaDisplay(result.deltas[category])
+            return (
+              <div key={category}>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                  <div className="md:col-span-1">
+                    <h4 className="font-semibold text-slate-900 capitalize">
+                      {category.replace(/([A-Z])/g, " $1").trim()}
+                    </h4>
+                  </div>
+
+                  <div className="text-center">
+                    <Badge variant="outline" className={getScoreColor(result.versionA[category].score)}>
+                      {result.versionA[category].score}
+                    </Badge>
+                    <p className="text-xs text-slate-500 mt-1">Version A</p>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                  </div>
+
+                  <div className="text-center">
+                    <Badge variant="outline" className={getScoreColor(result.versionB[category].score)}>
+                      {result.versionB[category].score}
+                    </Badge>
+                    <p className="text-xs text-slate-500 mt-1">Version B</p>
+                  </div>
+
+                  <div className="text-center">
+                    <div
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium ${deltaInfo.bg} ${deltaInfo.color} ${deltaInfo.border} border`}
+                    >
+                      {deltaInfo.icon}
+                      {deltaInfo.text}
+                    </div>
+                  </div>
+                </div>
+                {index < Object.keys(result.deltas).length - 1 && <Separator className="mt-4" />}
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+
+    {/* Export Section */}
+    <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Download className="h-5 w-5 text-emerald-600" />
+          Export Comparison Report
+        </CardTitle>
+        <CardDescription>Download your comparison analysis in your preferred format</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            variant="outline"
+            className="flex-1 border-red-200 text-red-700 hover:bg-red-50"
+          >
+            {exporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Download PDF
+          </Button>
+          <Button
+            onClick={handleExportDocx}
+            disabled={exporting}
+            variant="outline"
+            className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50"
+          >
+            {exporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Download DOCX
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+)}
       </div>
     </div>
   )
