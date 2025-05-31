@@ -16,10 +16,13 @@ export async function POST(req: NextRequest) {
     deltas: {},
   };
 
-  for (const [category, definition] of Object.entries(rubric)) {
+  for (const [category, definitionObj] of Object.entries(rubric)) {
+    // Extract the "Definition" field, which should be a string
+    const definitionText = definitionObj.Definition;
+
     const [scoreA, scoreB] = await Promise.all([
-      scoreWithGPT(category, definition, textA),
-      scoreWithGPT(category, definition, textB),
+      scoreWithGPT(category, definitionText, textA),
+      scoreWithGPT(category, definitionText, textB),
     ]);
 
     results.versionA[category] = scoreA;
